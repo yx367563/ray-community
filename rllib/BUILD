@@ -88,7 +88,6 @@ doctest(
             "algorithms/sac/rnnsac.py",
             "algorithms/simple_q/simple_q.py",
             "core/models/base.py",
-            "core/models/specs/checker.py",
             "core/models/specs/specs_base.py",
             "core/models/specs/specs_dict.py",
             "env/wrappers/pettingzoo_env.py",
@@ -100,7 +99,6 @@ doctest(
             "execution/buffers/mixin_replay_buffer.py",
             "models/base_model.py",
             "models/catalog.py",
-            "models/distributions.py",
             "models/preprocessors.py",
             "models/repeated_values.py",
             "models/tf/tf_distributions.py",
@@ -734,6 +732,16 @@ py_test(
 )
 
 py_test(
+    name = "learning_tests_repeat_after_me_ppo_with_rl_module",
+    main = "tests/run_regression_tests.py",
+    tags = ["team:rllib", "exclusive", "learning_tests", "learning_tests_discrete", "torch_only"],
+    size = "medium",
+    srcs = ["tests/run_regression_tests.py"],
+    data = ["tuned_examples/ppo/repeatafterme-ppo-lstm-with-rl-module.yaml"],
+    args = ["--dir=tuned_examples/ppo"]
+)
+
+py_test(
     name = "learning_tests_cartpole_ppo_fake_gpus",
     main = "tests/run_regression_tests.py",
     tags = ["team:rllib", "exclusive", "learning_tests", "learning_tests_cartpole", "learning_tests_discrete", "fake_gpus"],
@@ -1111,14 +1119,12 @@ py_test(
 )
 
 # DreamerV3
-# TODO (sven): Enable once the version conflict for gymnasium/supersuit/pettingzoo
-#  /shimmy/mujoco has been resolved.
-#py_test(
-#    name = "test_dreamerv3",
-#    tags = ["team:rllib", "algorithms_dir"],
-#    size = "large",
-#    srcs = ["algorithms/dreamerv3/tests/test_dreamerv3.py"]
-#)
+py_test(
+    name = "test_dreamerv3",
+    tags = ["team:rllib", "algorithms_dir"],
+    size = "large",
+    srcs = ["algorithms/dreamerv3/tests/test_dreamerv3.py"]
+)
 
 # DT
 py_test(
@@ -2929,7 +2935,7 @@ py_test(
 )
 
 py_test(
-     name = "tests/test_supported_spaces_ppo_no_preproceesor_gpu",
+     name = "tests/test_supported_spaces_ppo_no_preprocessor_gpu",
      main = "tests/test_supported_spaces.py",
      tags = ["team:rllib", "gpu", "no_cpu"],
      size = "large",
@@ -2971,12 +2977,12 @@ py_test(
 # --------------------------------------------------------------------
 
 py_test(
-    name = "examples/action_masking_tf",
+    name = "examples/action_masking_tf2",
     main = "examples/action_masking.py",
     tags = ["team:rllib", "exclusive", "examples"],
     size = "small",
     srcs = ["examples/action_masking.py"],
-    args = ["--stop-iter=2", "--framework=tf"]
+    args = ["--stop-iter=2", "--framework=tf2"]
 )
 
 py_test(
@@ -3087,12 +3093,12 @@ py_test(
 )
 
 py_test(
-    name = "examples/cartpole_lstm_impala_tf",
+    name = "examples/cartpole_lstm_impala_tf2",
     main = "examples/cartpole_lstm.py",
     tags = ["team:rllib", "exclusive", "examples"],
     size = "medium",
     srcs = ["examples/cartpole_lstm.py"],
-    args = ["--as-test", "--framework=tf", "--run=IMPALA", "--stop-reward=40", "--num-cpus=4"]
+    args = ["--run=IMPALA", "--as-test", "--framework=tf2", "--stop-reward=28", "--num-cpus=4"]
 )
 
 py_test(
@@ -3101,25 +3107,18 @@ py_test(
     tags = ["team:rllib", "exclusive", "examples"],
     size = "medium",
     srcs = ["examples/cartpole_lstm.py"],
-    args = ["--as-test", "--framework=torch", "--run=IMPALA", "--stop-reward=40", "--num-cpus=4"]
+    args = ["--run=IMPALA", "--as-test", "--framework=torch", "--stop-reward=28", "--num-cpus=4"]
 )
 
-py_test(
-    name = "examples/cartpole_lstm_ppo_tf",
-    main = "examples/cartpole_lstm.py",
-    tags = ["team:rllib", "exclusive", "examples"],
-    size = "medium",
-    srcs = ["examples/cartpole_lstm.py"],
-    args = ["--as-test", "--framework=tf", "--run=PPO", "--stop-reward=40", "--num-cpus=4"]
-)
 
+# TODO (Kourosh): tf2 ~5x slower compared to torch on the new stack
 py_test(
     name = "examples/cartpole_lstm_ppo_tf2",
     main = "examples/cartpole_lstm.py",
     tags = ["team:rllib", "exclusive", "examples"],
-    size = "medium",
+    size = "large",
     srcs = ["examples/cartpole_lstm.py"],
-    args = ["--as-test", "--framework=tf2", "--run=PPO", "--stop-reward=40", "--num-cpus=4"]
+    args = ["--run=PPO", "--as-test", "--framework=tf2", "--stop-reward=28", "--num-cpus=4"]
 )
 
 py_test(
@@ -3128,16 +3127,42 @@ py_test(
     tags = ["team:rllib", "exclusive", "examples"],
     size = "medium",
     srcs = ["examples/cartpole_lstm.py"],
-    args = ["--as-test", "--framework=torch", "--run=PPO", "--stop-reward=40", "--num-cpus=4"]
+    args = ["--run=PPO", "--as-test", "--framework=torch", "--stop-reward=28", "--num-cpus=4"]
 )
 
 py_test(
-    name = "examples/cartpole_lstm_ppo_tf_with_prev_a_and_r",
+    name = "examples/cartpole_lstm_ppo_torch_with_prev_a_and_r",
     main = "examples/cartpole_lstm.py",
     tags = ["team:rllib", "exclusive", "examples"],
     size = "medium",
     srcs = ["examples/cartpole_lstm.py"],
-    args = ["--as-test", "--run=PPO", "--stop-reward=40", "--use-prev-action",  "--use-prev-reward", "--num-cpus=4"]
+    args = ["--run=PPO", "--as-test", "--framework=torch", "--stop-reward=28", "--num-cpus=4", "--use-prev-action",  "--use-prev-reward"]
+)
+
+py_test(
+    name = "examples/catalog/custom_action_distribution",
+    main = "examples/catalog/custom_action_distribution.py",
+    tags = ["team:rllib", "examples", "no_main"],
+    size = "small",
+    srcs = ["examples/catalog/custom_action_distribution.py"],
+)
+
+
+py_test(
+    name = "examples/catalog/mobilenet_v2_encoder",
+    main = "examples/catalog/mobilenet_v2_encoder.py",
+    tags = ["team:rllib", "examples", "no_main"],
+    size = "small",
+    srcs = ["examples/catalog/mobilenet_v2_encoder.py"],
+)
+
+
+py_test(
+    name = "examples/rl_module/mobilenet_rlm",
+    main = "examples/rl_module/mobilenet_rlm.py",
+    tags = ["team:rllib", "examples", "no_main"],
+    size = "small",
+    srcs = ["examples/rl_module/mobilenet_rlm.py"],
 )
 
 py_test(
@@ -3443,6 +3468,43 @@ py_test(
     size = "medium",
     srcs = ["examples/custom_rnn_model.py"],
     args = ["--as-test", "--framework=torch", "--run=PPO", "--stop-reward=10", "--stop-timesteps=300000", "--env=RepeatInitialObsEnv", "--num-cpus=4"]
+)
+
+
+py_test(
+    name = "examples/custom_recurrent_rnn_tokenizer_repeat_after_me_tf2",
+    main = "examples/custom_recurrent_rnn_tokenizer.py",
+    tags = ["team:rllib", "exclusive", "examples"],
+    size = "medium",
+    srcs = ["examples/custom_recurrent_rnn_tokenizer.py"],
+    args = ["--as-test", "--framework=tf2", "--stop-reward=40", "--env=RepeatAfterMeEnv", "--num-cpus=4"]
+)
+
+py_test(
+    name = "examples/custom_recurrent_rnn_tokenizer_repeat_initial_obs_env_tf2",
+    main = "examples/custom_recurrent_rnn_tokenizer.py",
+    tags = ["team:rllib", "examples"],
+    size = "medium",
+    srcs = ["examples/custom_recurrent_rnn_tokenizer.py"],
+    args = ["--as-test", "--framework=tf2", "--stop-reward=10", "--stop-timesteps=300000", "--env=RepeatInitialObsEnv", "--num-cpus=4"]
+)
+
+py_test(
+    name = "examples/custom_recurrent_rnn_tokenizer_repeat_after_me_torch",
+    main = "examples/custom_recurrent_rnn_tokenizer.py",
+    tags = ["team:rllib", "exclusive", "examples"],
+    size = "medium",
+    srcs = ["examples/custom_recurrent_rnn_tokenizer.py"],
+    args = ["--as-test", "--framework=torch", "--stop-reward=40", "--env=RepeatAfterMeEnv", "--num-cpus=4"]
+)
+
+py_test(
+    name = "examples/custom_recurrent_rnn_tokenizer_repeat_initial_obs_env_torch",
+    main = "examples/custom_recurrent_rnn_tokenizer.py",
+    tags = ["team:rllib", "exclusive", "examples"],
+    size = "medium",
+    srcs = ["examples/custom_recurrent_rnn_tokenizer.py"],
+    args = ["--as-test", "--framework=torch", "--stop-reward=10", "--stop-timesteps=300000", "--env=RepeatInitialObsEnv", "--num-cpus=4"]
 )
 
 py_test(
@@ -3938,6 +4000,15 @@ py_test(
 )
 
 py_test(
+    name = "examples/recommender_system_with_recsim_and_slateq_torch",
+    main = "examples/recommender_system_with_recsim_and_slateq.py",
+    tags = ["team:rllib", "exclusive", "examples"],
+    size = "large",
+    srcs = ["examples/recommender_system_with_recsim_and_slateq.py"],
+    args = ["--stop-iters=2", "--num-steps-sampled-before-learning_starts=100", "--framework=torch", "--use-tune", "--random-test-episodes=10", "--env-num-candidates=50", "--env-slate-size=2"],
+)
+
+py_test(
     name = "examples/recommender_system_with_recsim_and_slateq_tf2",
     main = "examples/recommender_system_with_recsim_and_slateq.py",
     tags = ["team:rllib", "exclusive", "examples"],
@@ -4090,6 +4161,25 @@ py_test(
     tags = ["team:rllib", "exclusive", "examples"],
     size = "medium",
     srcs = ["examples/trajectory_view_api.py"],
+    args = ["--as-test", "--framework=torch", "--stop-reward=100.0"]
+)
+
+
+py_test(
+    name = "examples/trajectory_view_api_rlm_tf2",
+    main = "examples/trajectory_view_api_rlm.py",
+    tags = ["team:rllib", "exclusive", "examples"],
+    size = "medium",
+    srcs = ["examples/trajectory_view_api_rlm.py"],
+    args = ["--as-test", "--framework=tf2", "--stop-reward=100.0"]
+)
+
+py_test(
+    name = "examples/trajectory_view_api_rlm_torch",
+    main = "examples/trajectory_view_api_rlm.py",
+    tags = ["team:rllib", "exclusive", "examples"],
+    size = "medium",
+    srcs = ["examples/trajectory_view_api_rlm.py"],
     args = ["--as-test", "--framework=torch", "--stop-reward=100.0"]
 )
 
@@ -4398,7 +4488,6 @@ py_test_module_list(
   files = [
     "tests/test_dnc.py",
     "tests/test_perf.py",
-    "algorithms/dreamerv3/tests/test_dreamerv3.py",
     "env/wrappers/tests/test_kaggle_wrapper.py",
     "examples/env/tests/test_cliff_walking_wall_env.py",
     "examples/env/tests/test_coin_game_non_vectorized_env.py",

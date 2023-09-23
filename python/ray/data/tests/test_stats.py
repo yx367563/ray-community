@@ -1,4 +1,5 @@
 import re
+import time
 from collections import Counter
 from unittest.mock import patch
 
@@ -30,17 +31,26 @@ def canonicalize(stats: str) -> str:
     s0 = re.sub("([a-f\d]{32})", "U", stats)
     # Time expressions.
     s1 = re.sub("[0-9\.]+(ms|us|s)", "T", s0)
+    # Memory expressions.
+    s2 = re.sub("[0-9\.]+(B|MB|GB)", "M", s1)
     # Handle zero values specially so we can check for missing values.
-    s2 = re.sub(" [0]+(\.[0]+)?", " Z", s1)
+    s3 = re.sub(" [0]+(\.[0]+)?", " Z", s2)
     # Other numerics.
-    s3 = re.sub("[0-9]+(\.[0-9]+)?", "N", s2)
+    s4 = re.sub("[0-9]+(\.[0-9]+)?", "N", s3)
     # Replace tabs with spaces.
-    s4 = re.sub("\t", "    ", s3)
-    return s4
+    s5 = re.sub("\t", "    ", s4)
+    return s5
 
 
 def dummy_map_batches(x):
     """Dummy function used in calls to map_batches below."""
+    return x
+
+
+def map_batches_sleep(x, n):
+    """Dummy function used in calls to map_batches below, which
+    simply sleeps for `n` seconds before returning the input batch."""
+    time.sleep(n)
     return x
 
 
@@ -64,6 +74,19 @@ Stage N split(N, equal=False): \n"""
         # Workaround to preserve trailing whitespace in the above line without
         # causing linter failures.
         "* Extra metrics: {'num_output_N': N}\n"
+        """
+Dataset iterator time breakdown:
+* Total time user code is blocked: T
+* Total time in user code: T
+* Total time overall: T
+* Num blocks local: Z
+* Num blocks remote: Z
+* Num blocks unknown location: N
+* Batch iteration time breakdown (summed across prefetch threads):
+    * In ray.get(): T min, T max, T avg, T total
+    * In batch creation: T min, T max, T avg, T total
+    * In batch formatting: T min, T max, T avg, T total
+"""
     )
 
 
@@ -314,6 +337,50 @@ Dataset iterator time breakdown:
             )
 
 
+def test_dataset_stats_stage_execution_time(ray_start_regular_shared):
+    # Disable stage/operator fusion in order to test the stats
+    # of two different map_batches operators without fusing them together,
+    # so that we can observe different execution times for each.
+    ctx = ray.data.DataContext.get_current()
+    curr_optimizer_enabled = ctx.optimizer_enabled
+    curr_optimize_fuse_stages = ctx.optimize_fuse_stages
+    ctx.optimize_fuse_stages = False
+    ctx.optimizer_enabled = False
+
+    sleep_1 = 1
+    sleep_2 = 3
+    ds = (
+        ray.data.range(100, parallelism=1)
+        .map_batches(lambda batch: map_batches_sleep(batch, sleep_1))
+        .map_batches(lambda batch: map_batches_sleep(batch, sleep_2))
+        .materialize()
+    )
+
+    # Check that each map_batches operator has the corresponding execution time.
+    map_batches_1_stats = ds._get_stats_summary().parents[0].stages_stats[0]
+    map_batches_2_stats = ds._get_stats_summary().stages_stats[0]
+    assert sleep_1 <= map_batches_1_stats.time_total_s
+    assert sleep_2 <= map_batches_2_stats.time_total_s
+
+    ctx.optimize_fuse_stages = curr_optimize_fuse_stages
+    ctx.optimizer_enabled = curr_optimizer_enabled
+
+    # The following case runs 2 tasks with 1 CPU, with each task sleeping for
+    # `sleep_2` seconds. We expect the overall reported stage time to be
+    # at least `2 * sleep_2` seconds`, and less than the total elapsed time.
+    num_tasks = 2
+    ds = ray.data.range(100, parallelism=num_tasks).map_batches(
+        lambda batch: map_batches_sleep(batch, sleep_2)
+    )
+    start_time = time.time()
+    ds.take_all()
+    end_time = time.time()
+
+    stage_stats = ds._get_stats_summary().stages_stats[0]
+    stage_time = stage_stats.time_total_s
+    assert num_tasks * sleep_2 <= stage_time <= end_time - start_time
+
+
 def test_dataset__repr__(ray_start_regular_shared):
     n = 100
     ds = ray.data.range(n)
@@ -351,6 +418,8 @@ def test_dataset__repr__(ray_start_regular_shared):
         "      user_time=T,\n"
         "      total_time=T,\n"
         "   ),\n"
+        "   global_bytes_spilled=M,\n"
+        "   global_bytes_restored=M,\n"
         "   parents=[],\n"
         ")"
     )
@@ -409,6 +478,8 @@ def test_dataset__repr__(ray_start_regular_shared):
         "      user_time=T,\n"
         "      total_time=T,\n"
         "   ),\n"
+        "   global_bytes_spilled=M,\n"
+        "   global_bytes_restored=M,\n"
         "   parents=[\n"
         "      DatasetStatsSummary(\n"
         "         dataset_uuid=U,\n"
@@ -440,6 +511,8 @@ def test_dataset__repr__(ray_start_regular_shared):
         "            user_time=T,\n"
         "            total_time=T,\n"
         "         ),\n"
+        "         global_bytes_spilled=M,\n"
+        "         global_bytes_restored=M,\n"
         "         parents=[],\n"
         "      ),\n"
         "   ],\n"
@@ -1049,9 +1122,11 @@ def test_summarize_blocks(ray_start_regular_shared, stage_two_block):
     calculated_stats = stats.to_summary()
     summarized_lines = calculated_stats.to_string().split("\n")
 
+    latest_end_time = max(m.exec_stats.end_time_s for m in block_meta_list)
+    earliest_start_time = min(m.exec_stats.start_time_s for m in block_meta_list)
     assert (
         "Stage 0 Read: 2/2 blocks executed in {}s".format(
-            max(round(stats.time_total_s, 2), 0)
+            max(round(latest_end_time - earliest_start_time, 2), 0)
         )
         == summarized_lines[0]
     )

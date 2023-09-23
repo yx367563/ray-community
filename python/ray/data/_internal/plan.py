@@ -16,6 +16,7 @@ from typing import (
 )
 
 import ray
+from ray._private.internal_api import get_memory_info_reply, get_state_from_address
 from ray.data._internal.block_list import BlockList
 from ray.data._internal.compute import (
     ActorPoolStrategy,
@@ -125,6 +126,8 @@ class ExecutionPlan:
         self._stages_after_snapshot = []
         # Cache of optimized stages.
         self._last_optimized_stages = None
+        # Cached schema.
+        self._schema = None
 
         self._dataset_uuid = dataset_uuid or uuid.uuid4().hex
         if not stats.dataset_uuid:
@@ -381,7 +384,14 @@ class ExecutionPlan:
         """
         from ray.data._internal.stage_impl import RandomizeBlocksStage
 
+        if self._schema is not None:
+            return self._schema
+
         if self._stages_after_snapshot:
+            # TODO(swang): There are several other stage types that could
+            # inherit the schema or we can compute the schema without having to
+            # execute any of the dataset: limit, filter, map_batches for
+            # add/drop columns, etc.
             if fetch_if_missing:
                 if isinstance(self._stages_after_snapshot[-1], RandomizeBlocksStage):
                     # TODO(ekl): this is a hack to optimize the case where we have a
@@ -412,7 +422,11 @@ class ExecutionPlan:
         blocks = self._snapshot_blocks
         if not blocks:
             return None
-        return self._get_unified_blocks_schema(blocks, fetch_if_missing)
+        self._schema = self._get_unified_blocks_schema(blocks, fetch_if_missing)
+        return self._schema
+
+    def cache_schema(self, schema: Union[type, "pyarrow.lib.Schema"]):
+        self._schema = schema
 
     def _get_unified_blocks_schema(
         self, blocks: BlockList, fetch_if_missing: bool = False
@@ -557,7 +571,7 @@ class ExecutionPlan:
                     "are freed up. A common reason is that cluster resources are "
                     "used by Actors or Tune trials; see the following link "
                     "for more details: "
-                    "https://docs.ray.io/en/master/data/dataset-internals.html#datasets-and-tune"  # noqa: E501
+                    "https://docs.ray.io/en/latest/data/data-internals.html#ray-data-and-tune"  # noqa: E501
                 )
         if not self.has_computed_output():
             if self._run_with_new_execution_backend():
@@ -621,6 +635,17 @@ class ExecutionPlan:
                     logger.get_logger(log_to_stdout=context.enable_auto_log_stats).info(
                         stats_summary_string,
                     )
+
+            # Retrieve memory-related stats from ray.
+            reply = get_memory_info_reply(
+                get_state_from_address(ray.get_runtime_context().gcs_address)
+            )
+            if reply.store_stats.spill_time_total_s > 0:
+                stats.global_bytes_spilled = int(reply.store_stats.spilled_bytes_total)
+            if reply.store_stats.restore_time_total_s > 0:
+                stats.global_bytes_restored = int(
+                    reply.store_stats.restored_bytes_total
+                )
 
             # Set the snapshot to the output of the final stage.
             self._snapshot_blocks = blocks

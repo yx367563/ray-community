@@ -19,9 +19,9 @@
 #include "absl/container/flat_hash_set.h"
 #include "ray/common/id.h"
 #include "ray/common/ray_syncer/ray_syncer.h"
+#include "ray/common/scheduling/cluster_resource_data.h"
 #include "ray/gcs/gcs_server/gcs_init_data.h"
 #include "ray/gcs/gcs_server/gcs_table_storage.h"
-#include "ray/raylet/scheduling/cluster_resource_data.h"
 #include "ray/raylet/scheduling/cluster_resource_manager.h"
 #include "ray/raylet/scheduling/cluster_task_manager.h"
 #include "ray/rpc/client_call.h"
@@ -78,6 +78,11 @@ class GcsResourceManager : public rpc::NodeResourceInfoHandler,
       rpc::GetAllAvailableResourcesReply *reply,
       rpc::SendReplyCallback send_reply_callback) override;
 
+  /// Handle get ids of draining nodes.
+  void HandleGetDrainingNodes(rpc::GetDrainingNodesRequest request,
+                              rpc::GetDrainingNodesReply *reply,
+                              rpc::SendReplyCallback send_reply_callback) override;
+
   /// Handle report resource usage rpc from a raylet.
   void HandleReportResourceUsage(rpc::ReportResourceUsageRequest request,
                                  rpc::ReportResourceUsageReply *reply,
@@ -118,13 +123,25 @@ class GcsResourceManager : public rpc::NodeResourceInfoHandler,
   /// Update resource usage of given node.
   ///
   /// \param node_id Node id.
-  /// \param request Request containing resource usage.
+  /// \param resources The resource usage of the node.
+  /// \param from_resource_view Whether the resource report is from resource view, i.e.
+  ///   syncer::MessageType::RESOURCE_VIEW.
   void UpdateNodeResourceUsage(const NodeID &node_id,
                                const rpc::ResourcesData &resources);
 
   /// Process a new resource report from a node, independent of the rpc handler it came
   /// from.
-  void UpdateFromResourceReport(const rpc::ResourcesData &data);
+  ///
+  /// \param data The resource report.
+  /// \param from_resource_view Whether the resource report is from resource view, i.e.
+  ///   syncer::MessageType::RESOURCE_VIEW.
+  void UpdateFromResourceView(const rpc::ResourcesData &data);
+
+  /// Update the resource usage of a node from syncer COMMANDS
+  ///
+  /// This is currently used for setting cluster full of actors info from syncer.
+  /// \param data The resource report.
+  void UpdateFromResourceCommand(const rpc::ResourcesData &data);
 
   /// Update the placement group load information so that it will be reported through
   /// heartbeat.

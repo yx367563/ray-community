@@ -2,26 +2,25 @@ import asyncio
 import functools
 import logging
 import sys
-from typing import Any, Callable, Optional, Union, Dict
+from typing import Any, Callable, Dict, Optional, Union
 
-from fastapi import Depends, FastAPI
 import grpc
+from fastapi import Depends, FastAPI
 
 import ray
-from ray import cloudpickle
-from ray._private.utils import get_or_create_event_loop
+from ray import cloudpickle, serve
 from ray._private.tls_utils import add_port_to_grpc_server
-from ray.util.annotations import PublicAPI
-
-from ray import serve
+from ray._private.utils import get_or_create_event_loop
+from ray.serve._private.constants import DEFAULT_GRPC_PORT, SERVE_LOGGER_NAME
+from ray.serve._private.http_util import ASGIAppReplicaWrapper
+from ray.serve._private.usage import ServeUsageTag
+from ray.serve._private.utils import install_serve_encoders_to_fastapi
 from ray.serve.deployment_graph import RayServeDAGHandle
 from ray.serve.drivers_utils import load_http_adapter
 from ray.serve.exceptions import RayServeException
 from ray.serve.generated import serve_pb2, serve_pb2_grpc
-from ray.serve.handle import RayServeDeploymentHandle
-from ray.serve._private.constants import DEFAULT_GRPC_PORT, SERVE_LOGGER_NAME
-from ray.serve._private.http_util import ASGIAppReplicaWrapper
-from ray.serve._private.utils import install_serve_encoders_to_fastapi, record_serve_tag
+from ray.serve.handle import RayServeHandle
+from ray.util.annotations import PublicAPI
 
 logger = logging.getLogger(SERVE_LOGGER_NAME)
 
@@ -46,9 +45,9 @@ class DAGDriver(ASGIAppReplicaWrapper):
                 HTTP requests to Ray Serve input.
         """
 
-        record_serve_tag("SERVE_DAG_DRIVER_USED", "1")
+        ServeUsageTag.DAG_DRIVER_USED.record("1")
         if http_adapter is not None:
-            record_serve_tag("SERVE_HTTP_ADAPTER_USED", "1")
+            ServeUsageTag.HTTP_ADAPTER_USED.record("1")
 
         install_serve_encoders_to_fastapi()
         http_adapter = load_http_adapter(http_adapter)
@@ -71,7 +70,7 @@ class DAGDriver(ASGIAppReplicaWrapper):
                 endpoint_create_func()
 
         else:
-            assert isinstance(dags, (RayServeDAGHandle, RayServeDeploymentHandle))
+            assert isinstance(dags, (RayServeDAGHandle, RayServeHandle))
             self.dags = {self.MATCH_ALL_ROUTE_PREFIX: dags}
 
             # Single dag case, we will receive all prefix route
@@ -85,11 +84,13 @@ class DAGDriver(ASGIAppReplicaWrapper):
 
     async def predict(self, *args, _ray_cache_refs: bool = False, **kwargs):
         """Perform inference directly without HTTP."""
-        return await (
-            await self.dags[self.MATCH_ALL_ROUTE_PREFIX].remote(
-                *args, _ray_cache_refs=_ray_cache_refs, **kwargs
-            )
-        )
+        dag = self.dags[self.MATCH_ALL_ROUTE_PREFIX]
+        # `dag` may also be a vanilla `RayServeHandle`; in that case, it doesn't take
+        # the `_ray_cache_refs` kwarg.
+        if isinstance(dag, RayServeDAGHandle):
+            kwargs["_ray_cache_refs"] = _ray_cache_refs
+
+        return await (await dag.remote(*args, **kwargs))
 
     async def predict_with_route(self, route_path, *args, **kwargs):
         """Perform inference directly without HTTP for multi dags."""
@@ -114,9 +115,9 @@ class DAGDriver(ASGIAppReplicaWrapper):
 
         return await root_dag_node.get_object_refs_from_last_execute()
 
-    async def get_dag_node_json(self) -> str:
-        """Returns the json serialized root dag node"""
-        return self.dags[self.MATCH_ALL_ROUTE_PREFIX].dag_node_json
+    async def get_pickled_dag_node(self) -> bytes:
+        """Returns the serialized root dag node."""
+        return self.dags[self.MATCH_ALL_ROUTE_PREFIX].pickled_dag_node
 
 
 @PublicAPI(stability="alpha")
@@ -139,7 +140,7 @@ class gRPCIngress:
 
         self.setup_complete = asyncio.Event()
         self.running_task = get_or_create_event_loop().create_task(self.run())
-        record_serve_tag("SERVE_GRPC_INGRESS_USED", "1")
+        ServeUsageTag.GRPC_INGRESS_USED.record("1")
 
     async def run(self):
         """Start gRPC Server"""
