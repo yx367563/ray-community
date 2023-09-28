@@ -18,11 +18,7 @@ from ray._private.test_utils import (
 )
 from ray.cluster_utils import Cluster
 from ray.serve._private.common import DeploymentID
-from ray.serve._private.constants import (
-    RAY_SERVE_ENABLE_EXPERIMENTAL_STREAMING,
-    SERVE_DEFAULT_APP_NAME,
-    SERVE_NAMESPACE,
-)
+from ray.serve._private.constants import SERVE_DEFAULT_APP_NAME, SERVE_NAMESPACE
 from ray.serve.config import gRPCOptions
 from ray.serve.drivers import DefaultgRPCDriver, gRPCIngress
 from ray.serve.exceptions import RayServeException
@@ -162,7 +158,7 @@ finally:
         )
 
 
-@patch("ray.serve._private.api.FLAG_DISABLE_HTTP_PROXY", True)
+@patch("ray.serve._private.api.FLAG_DISABLE_PROXY", True)
 def test_controller_without_http(serve_start_shutdown):
     @serve.deployment
     class D1:
@@ -170,13 +166,10 @@ def test_controller_without_http(serve_start_shutdown):
             return input["a"]
 
     serve.run(DefaultgRPCDriver.bind(D1.bind()))
-    assert (
-        ray.get(serve.context._global_client._controller.get_http_proxies.remote())
-        == {}
-    )
+    assert ray.get(serve.context._global_client._controller.get_proxies.remote()) == {}
 
 
-@patch("ray.serve._private.api.FLAG_DISABLE_HTTP_PROXY", True)
+@patch("ray.serve._private.api.FLAG_DISABLE_PROXY", True)
 def test_deploy_grpc_driver_to_node(ray_cluster):
     cluster = ray_cluster
     cluster.add_node(num_cpus=2)
@@ -627,12 +620,6 @@ def test_grpc_proxy_timeouts(ray_instance, ray_shutdown, streaming: bool):
     When the request timed out, gRPC proxy should return timeout response for both
     unary and streaming request.
     """
-    if streaming and not RAY_SERVE_ENABLE_EXPERIMENTAL_STREAMING:
-        print(
-            "Skipping streaming condition because streaming feature flag is disabled."
-        )
-        return
-
     grpc_port = 9000
     grpc_servicer_functions = [
         "ray.serve.generated.serve_pb2_grpc.add_UserDefinedServiceServicer_to_server",
@@ -697,12 +684,6 @@ def test_grpc_proxy_internal_error(ray_instance, ray_shutdown, streaming: bool):
     When the request error out, gRPC proxy should return INTERNAL status and the error
     message in the response for both unary and streaming request.
     """
-    if streaming and not RAY_SERVE_ENABLE_EXPERIMENTAL_STREAMING:
-        print(
-            "Skipping streaming condition because streaming feature flag is disabled."
-        )
-        return
-
     grpc_port = 9000
     grpc_servicer_functions = [
         "ray.serve.generated.serve_pb2_grpc.add_UserDefinedServiceServicer_to_server",

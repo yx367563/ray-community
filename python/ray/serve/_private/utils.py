@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import importlib
 import inspect
@@ -11,7 +12,7 @@ import time
 import traceback
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 import __main__
 import fastapi.encoders
@@ -158,43 +159,6 @@ def format_actor_name(actor_name, controller_name=None, *modifiers):
         name += "-{}".format(modifier)
 
     return name
-
-
-def compute_iterable_delta(old: Iterable, new: Iterable) -> Tuple[set, set, set]:
-    """Given two iterables, return the entries that's (added, removed, updated).
-
-    Usage:
-        >>> from ray.serve._private.utils import compute_iterable_delta
-        >>> old = {"a", "b"}
-        >>> new = {"a", "d"}
-        >>> compute_iterable_delta(old, new)
-        ({'d'}, {'b'}, {'a'})
-    """
-    old_keys, new_keys = set(old), set(new)
-    added_keys = new_keys - old_keys
-    removed_keys = old_keys - new_keys
-    updated_keys = old_keys.intersection(new_keys)
-    return added_keys, removed_keys, updated_keys
-
-
-def compute_dict_delta(old_dict, new_dict) -> Tuple[dict, dict, dict]:
-    """Given two dicts, return the entries that's (added, removed, updated).
-
-    Usage:
-        >>> from ray.serve._private.utils import compute_dict_delta
-        >>> old = {"a": 1, "b": 2}
-        >>> new = {"a": 3, "d": 4}
-        >>> compute_dict_delta(old, new)
-        ({'d': 4}, {'b': 2}, {'a': 3})
-    """
-    added_keys, removed_keys, updated_keys = compute_iterable_delta(
-        old_dict.keys(), new_dict.keys()
-    )
-    return (
-        {k: new_dict[k] for k in added_keys},
-        {k: old_dict[k] for k in removed_keys},
-        {k: new_dict[k] for k in updated_keys},
-    )
 
 
 def ensure_serialization_context():
@@ -693,3 +657,11 @@ def in_ray_driver_process() -> bool:
     """
 
     return ray.get_runtime_context().worker.mode in [SCRIPT_MODE, LOCAL_MODE]
+
+
+def is_running_in_asyncio_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
