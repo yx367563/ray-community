@@ -106,7 +106,8 @@ RAY_CONFIG(uint64_t, task_oom_retries, -1)
 /// group_by_owner
 /// retriable_lifo
 /// retriable_fifo
-RAY_CONFIG(std::string, worker_killing_policy, "group_by_owner")
+/// memory_aware
+RAY_CONFIG(std::string, worker_killing_policy, "memory_aware")
 
 /// If the raylet fails to get agent info, we will retry after this interval.
 RAY_CONFIG(uint64_t, raylet_get_agent_info_interval_ms, 1)
