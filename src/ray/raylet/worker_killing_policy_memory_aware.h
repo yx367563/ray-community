@@ -27,11 +27,8 @@ namespace ray {
 
 namespace raylet {
 
-/// Groups task by its owner id. Non-retriable task (whether it be task or actor) forms
-/// its own group. Prioritizes killing groups that are retriable first, else it picks the
-/// largest group, else it picks the newest group. The "age" of a group is based on the
-/// time of its earliest submitted task. When a group is selected for killing it selects
-/// the last submitted task.
+/// Prioritize retryable tasks, sort them according to the actual memory occupied by the
+/// tasks, and kill the task that occupy the most memory first.
 ///
 /// When selecting a worker / task to be killed, it will set the task to-be-killed to be
 /// non-retriable if it is the last member of the group, and is retriable otherwise.
