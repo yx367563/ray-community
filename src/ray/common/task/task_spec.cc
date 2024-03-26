@@ -572,6 +572,30 @@ void TaskSpecification::EmitTaskMetrics() const {
   }
 }
 
+void TaskSpecification::updateRequiredMemory() {
+  if (required_resources_->Has(ResourceID::Memory())) {
+    auto increased_memory = required_resources_->Get(ResourceID::Memory()) +
+                            required_resources_->Get(ResourceID::Memory());
+    required_resources_->Set(ResourceID::Memory(), increased_memory);
+
+    message_->mutable_required_resources()->clear();
+    message_->mutable_required_resources()->insert(
+        required_resources_->GetResourceUnorderedMap().begin(),
+        required_resources_->GetResourceUnorderedMap().end());
+  }
+
+  if (required_placement_resources_->Has(ResourceID::Memory())) {
+    auto increased_memory = required_placement_resources_->Get(ResourceID::Memory()) +
+                            required_placement_resources_->Get(ResourceID::Memory());
+    required_placement_resources_->Set(ResourceID::Memory(), increased_memory);
+
+    message_->mutable_required_placement_resources()->clear();
+    message_->mutable_required_placement_resources()->insert(
+        required_placement_resources_->GetResourceUnorderedMap().begin(),
+        required_placement_resources_->GetResourceUnorderedMap().end());
+  }
+}
+
 std::string TaskSpecification::CallSiteString() const {
   std::ostringstream stream;
   auto desc = FunctionDescriptor();

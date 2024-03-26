@@ -910,6 +910,9 @@ bool TaskManager::RetryTaskIfPossible(const TaskID &task_id,
     num_retries_left = it->second.num_retries_left;
     num_oom_retries_left = it->second.num_oom_retries_left;
     if (task_failed_due_to_oom) {
+      // OOM-triggered retries will attempt to expand the requested memory.
+      spec.updateRequiredMemory();
+
       if (num_oom_retries_left > 0) {
         will_retry = true;
         it->second.num_oom_retries_left--;

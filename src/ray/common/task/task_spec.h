@@ -489,6 +489,12 @@ class TaskSpecification : public MessageWrapper<rpc::TaskSpec> {
 
   void EmitTaskMetrics() const;
 
+  /// Expand the requested memory.
+  /// required_resources_, required_placement_resources_ and message_ will be modified at
+  /// the same time.
+  /// Currently it is only called under retry triggered by OOM.
+  void updateRequiredMemory();
+
  private:
   void ComputeResources();
 
