@@ -56,6 +56,18 @@ MemoryAwareWorkerKillingPolicy::SelectWorkerToKill(
     return std::make_pair(nullptr, /*should retry*/ false);
   }
 
+  std::unordered_map<TaskID, int64_t>
+      group_map;  // record the number of each group. key: owner_id, value: number
+  for (auto worker : workers) {
+    TaskID owner_id = worker->GetAssignedTask().GetTaskSpecification().ParentTaskId();
+    auto it = group_map.find(owner_id);
+    if (it == group_map.end()) {
+      group_map.emplace(owner_id, 1);
+    } else {
+      ++group_map[owner_id];
+    }
+  }
+
   std::vector<std::shared_ptr<WorkerInterface>> sortedWorkers = workers;
   std::sort(sortedWorkers.begin(),
             sortedWorkers.end(),
@@ -72,14 +84,18 @@ MemoryAwareWorkerKillingPolicy::SelectWorkerToKill(
                 if (left_used_memory == right_used_memory) {
                   return left->GetAssignedTaskTime() > right->GetAssignedTaskTime();
                 }
-                return left_used_memory > right_used_memory;
+                return left_used_memory >
+                       right_used_memory;  // prioritize tasks that actually occupy the
+                                           // most memory
               }
 
-              return left_retriable < right_retriable;
+              return left_retriable < right_retriable;  // prioritize retryable tasks
             });
 
   auto worker_to_kill = sortedWorkers.front();
   bool should_retry =
+      group_map[worker_to_kill->GetAssignedTask().GetTaskSpecification().ParentTaskId()] >
+          1 &&
       worker_to_kill->GetAssignedTask().GetTaskSpecification().IsRetriable();
 
   return std::make_pair(worker_to_kill, should_retry);
