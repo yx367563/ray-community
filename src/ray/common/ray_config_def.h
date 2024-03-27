@@ -100,7 +100,10 @@ RAY_CONFIG(uint64_t, task_failure_entry_ttl_ms, 15 * 60 * 1000)
 /// ignored. This retry counter is only used when the process is killed due to memory, and
 /// the retry counter of the task or actor is only used when it fails in other ways
 /// that is not related to running out of memory. Retries indefinitely if the value is -1.
-RAY_CONFIG(uint64_t, task_oom_retries, -1)
+RAY_CONFIG(uint64_t, task_oom_retries, 10)
+
+/// When retrying is required due to OOM, the ratio of expanding the requested memory
+RAY_CONFIG(double, task_oom_retry_memory_expansion, 1.5)
 
 /// The worker killing policy to use, available options are
 /// group_by_owner

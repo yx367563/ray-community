@@ -573,9 +573,11 @@ void TaskSpecification::EmitTaskMetrics() const {
 }
 
 void TaskSpecification::updateRequiredMemory() {
-  if (required_resources_->Has(ResourceID::Memory())) {
-    auto increased_memory = required_resources_->Get(ResourceID::Memory()) +
-                            required_resources_->Get(ResourceID::Memory());
+  auto memory_expansion = RayConfig::instance().task_oom_retry_memory_expansion();
+
+  if (memory_expansion > 1 && required_resources_->Has(ResourceID::Memory())) {
+    auto prev_memory = required_resources_->Get(ResourceID::Memory()).Double();
+    auto increased_memory = prev_memory * memory_expansion;
     required_resources_->Set(ResourceID::Memory(), increased_memory);
 
     message_->mutable_required_resources()->clear();
@@ -584,9 +586,9 @@ void TaskSpecification::updateRequiredMemory() {
         required_resources_->GetResourceUnorderedMap().end());
   }
 
-  if (required_placement_resources_->Has(ResourceID::Memory())) {
-    auto increased_memory = required_placement_resources_->Get(ResourceID::Memory()) +
-                            required_placement_resources_->Get(ResourceID::Memory());
+  if (memory_expansion > 1 && required_placement_resources_->Has(ResourceID::Memory())) {
+    auto prev_memory = required_placement_resources_->Get(ResourceID::Memory()).Double();
+    auto increased_memory = prev_memory * memory_expansion;
     required_placement_resources_->Set(ResourceID::Memory(), increased_memory);
 
     message_->mutable_required_placement_resources()->clear();
