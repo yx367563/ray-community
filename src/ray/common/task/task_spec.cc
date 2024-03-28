@@ -580,10 +580,8 @@ void TaskSpecification::updateRequiredMemory() {
     auto increased_memory = prev_memory * memory_expansion;
     required_resources_->Set(ResourceID::Memory(), increased_memory);
 
-    message_->mutable_required_resources()->clear();
-    message_->mutable_required_resources()->insert(
-        required_resources_->GetResourceUnorderedMap().begin(),
-        required_resources_->GetResourceUnorderedMap().end());
+    (*message_->mutable_required_resources())[ResourceID::Memory().Binary()] =
+        increased_memory;
   }
 
   if (memory_expansion > 1 && required_placement_resources_->Has(ResourceID::Memory())) {
@@ -591,10 +589,8 @@ void TaskSpecification::updateRequiredMemory() {
     auto increased_memory = prev_memory * memory_expansion;
     required_placement_resources_->Set(ResourceID::Memory(), increased_memory);
 
-    message_->mutable_required_placement_resources()->clear();
-    message_->mutable_required_placement_resources()->insert(
-        required_placement_resources_->GetResourceUnorderedMap().begin(),
-        required_placement_resources_->GetResourceUnorderedMap().end());
+    (*message_->mutable_required_placement_resources())[ResourceID::Memory().Binary()] =
+        increased_memory;
   }
 }
 
