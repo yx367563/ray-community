@@ -1414,6 +1414,20 @@ ray_cc_test(
 )
 
 ray_cc_test(
+    name = "worker_killing_policy_memory_aware_test",
+    size = "small",
+    srcs = [
+        "src/ray/raylet/worker_killing_policy_memory_aware_test.cc",
+    ],
+    tags = ["team:core"],
+    deps = [
+        ":ray_common",
+        ":raylet_lib",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+ray_cc_test(
     name = "worker_killing_policy_retriable_fifo_test",
     size = "small",
     srcs = [

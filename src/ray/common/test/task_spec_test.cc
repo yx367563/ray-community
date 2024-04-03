@@ -196,6 +196,32 @@ TEST(TaskSpecTest, TestNodeLabelSchedulingStrategy) {
   ASSERT_FALSE(std::hash<rpc::SchedulingStrategy>()(scheduling_strategy_1) ==
                std::hash<rpc::SchedulingStrategy>()(scheduling_strategy_5));
 }
+
+TEST(TaskSpecTest, TestUpdateRequiredMemory) {
+  double initial_memory = 1024;
+  const std::unordered_map<std::string, double> memory = {{"memory", initial_memory}};
+
+  rpc::TaskSpec task_spec;
+  task_spec.mutable_required_resources()->insert(memory.begin(), memory.end());
+  task_spec.mutable_required_placement_resources()->insert(memory.begin(), memory.end());
+  TaskSpecification task(task_spec);
+
+  task.updateRequiredMemory();
+  auto memory_expansion = RayConfig::instance().task_oom_retry_memory_expansion();
+  double expected_memory = initial_memory * memory_expansion;
+
+  ASSERT_EQ(task.GetRequiredResources().Get(ResourceID::Memory()).Double(),
+            expected_memory);
+  ASSERT_EQ(task.GetRequiredPlacementResources().Get(ResourceID::Memory()).Double(),
+            expected_memory);
+  ASSERT_EQ(task.GetMutableMessage().mutable_required_resources()->at(
+                ResourceID::Memory().Binary()),
+            expected_memory);
+  ASSERT_EQ(task.GetMutableMessage().mutable_required_placement_resources()->at(
+                ResourceID::Memory().Binary()),
+            expected_memory);
+}
+
 }  // namespace ray
 
 int main(int argc, char **argv) {

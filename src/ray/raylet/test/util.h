@@ -74,9 +74,9 @@ class MockWorker : public WorkerInterface {
   void MarkUnblocked() override { blocked_ = false; }
   bool IsBlocked() const override { return blocked_; }
 
-  Process GetProcess() const override { return Process::CreateNewDummy(); }
+  Process GetProcess() const override { return proc_; }
   StartupToken GetStartupToken() const override { return 0; }
-  void SetProcess(Process proc) override { RAY_CHECK(false) << "Method unused"; }
+  void SetProcess(Process proc) override { proc_ = proc; }
 
   Language GetLanguage() const override {
     RAY_CHECK(false) << "Method unused";
@@ -188,6 +188,7 @@ class MockWorker : public WorkerInterface {
   int runtime_env_hash_;
   TaskID task_id_;
   JobID job_id_;
+  Process proc_;
 };
 
 }  // namespace raylet
